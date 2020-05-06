@@ -1,0 +1,11 @@
+function lam=lambda(jac,Q)
+
+lam = 10;
+
+%% calculate S=sqrt(inv(J'QJ)ii)
+S = jac'*Q*jac;
+S = diag(S\eye(length(S)),0);
+alpha = lam/max(S);
+
+%% lambda update vector
+u = 

@@ -1,0 +1,60 @@
+function u=lambda_serch(jac,Q,obs_resid)
+% global alphas beta gamma lambda jqj S2 u
+% criteria
+NUMLAM = 10;
+PHIREDLAM = 0.001;
+
+% constants
+jqj = jac'*Q*jac;
+S2 = diag(jqj\eye(length(jqj)),0);
+wtresid = Q*obs_resid;
+
+% initialize
+lambda = 10;
+[phi, u] = estimate_phi(lambda);
+phi0 = inf;
+count = 0;
+
+% reduce lambda
+while phi<phi0
+  lambda0 = lambda;
+  lambda = lambda0/2;
+  u0 = u;
+  temp = phi0;
+  phi0 = phi;
+  if abs(temp-phi)/temp < PHIREDLAM, break; end
+  if abs(norm(u0)-norm(u))/norm(u0) < PHIREDLAM, break; end
+  if count > NUMLAM, break; end
+  count = count+1;
+  [phi,u] = estimate_phi(lambda);
+end
+
+% increase lambda
+while phi0<phi
+  lambda = lambda0;
+  lambda0 = lambda*2;
+  u = u0;
+  temp = phi;
+  phi = phi0;
+  if abs(temp-phi0)/temp < PHIREDLAM, break; end
+  if abs(norm(u)-norm(u0))/norm(u) < PHIREDLAM, break; end
+  if count > NUMLAM, break; end
+  count = count+1;
+  [phi0,u0] = estimate_phi(lambda0);
+end
+
+  function [beta,u]=estimate_phi(lambda)
+  alpha = lambda/max(S2);
+
+  %% lambda update vector
+  u = (jqj+alpha*eye(length(jqj)))\eye(length(jqj))*jac'*wtresid;
+
+  %% optimal line search
+  gamma = jac*u;
+  beta = gamma'*wtresid/(gamma'*Q*gamma);
+  u = beta*u;
+  beta = obs_resid + jac*u;
+  beta = beta'*Q*beta;
+  end
+
+end
