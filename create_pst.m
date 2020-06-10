@@ -2,7 +2,7 @@ function create_pst(d_current0,runname,wt_col,flag_parmtran)
 % Script to create PPEST *.pst (version2)
 
 if nargin < 1 || isempty(d_current0)
-  d_current0 = 'F:\IHM\BEOPEST\Current0_IHMv4_20200222';
+  d_current0 = 'F:\IHM\BEOPEST\Current0_IHMv4_20191120';
 end
 if nargin < 2, runname = 'bp_020'; end
 if nargin < 3, wt_col = 5; end
@@ -11,7 +11,7 @@ if nargin < 4, flag_parmtran = true; end
 %% path and files for creation of parameters data
 d_root = fileparts(d_current0);
 f_param = fullfile(d_root,runname,'parameters_3.xls'); % original:'parameters_2.xls'
-f_weight = fullfile(d_root,'ObsWeightSchemes_2.xls'); %original:ObsWeightSchemes_2.xls
+f_weight = fullfile(d_root,'ObsWeightSchemes_3.xls'); %original:ObsWeightSchemes_2.xls
 d_pestet = fullfile(d_root,'PEST_ET');
 f_intb = fullfile(d_current0,'INTB2_input.mdf');
 f_dbout = fullfile(d_current0,'INTB_output.mdf');
@@ -318,6 +318,8 @@ write_file;
     for g = par_group'
         if strcmp(g,'intfw')>0
             temp = sprintf('%-13s absolute  0.01  0.0  always_3  0.5  parabolic',char(g));
+          elseif strcmp(g,'do')>0
+            temp = sprintf('%-13s relative  0.08  0.1  always_3  0.5  parabolic',char(g));
         else
             temp = sprintf('%-13s relative  0.08  0.0  always_3  0.5  parabolic',char(g));
         end
@@ -353,9 +355,7 @@ write_file;
         'SELECT LocationID',...
         '	,CAST(CONVERT(VARCHAR,IntervalStartDate,112) AS INT) DATE',...
         '	,ObservedIntervalMean',...
-        '	,ObservedIntervalStandardDeviation',...
-        '	,Residual',...
-        '	,Weight ',...
+        '	,ObservedIntervalStandardDeviation ',...
         'FROM dbo.ObservedDataIntervalStats ',...
         sprintf('where DataTypeCode=%d and IntervalTypeCode=%d and ',typecode(i,1),typecode(i,2)),...
         '(IntervalStartDate between ''',data_sdate,''' and ''',data_edate,''') and ObservedIntervalStandardDeviation>0 ',...
@@ -385,7 +385,7 @@ write_file;
     if (obs_wt(5) > 0 || obs_wt(6) > 0)
       temp = regexpi(obs_data,'gwl(\d+)_.*','tokens','once');
       i_temp = cellfun(@(y) ~isempty(y),temp);
-      id_temp = cellfun(@(y) rgn([rgn.sid]==str2double(y)).Layer,temp(i_temp));
+      id_temp = cellfun(@(y) rgn([rgn.sid]==str2double(char(y))).Layer,temp(i_temp));
       obs_data(i_temp) = strrep(obs_data(i_temp),'lygwl',...
         arrayfun(@(x) sprintf('lygw%1d',x),id_temp,'UniformOutput',false));
     end
@@ -536,17 +536,17 @@ write_file;
       ' single  point  1   0   0');
     % RLAMBDA1 RLAMFAC PHIRATSUF PHIREDLAM NUMLAM [JACUPDATE]
 %    fprintf(fid,'%s\n',' 50.0  2.0  0.2  0.01  10 999');
-    fprintf(fid,'%s\n','  5.0  2.0  0.2  0.01  5 999 lamforgive');
-    % RELPARMAX FACPARMAX FACORIG [IBOUNDSTICK] [UPVECBEND]
+    fprintf(fid,'%s\n','  0  2.0  0.2  0.01  1 999 lamforgive');
+% RELPARMAX FACPARMAX FACORIG [IBOUNDSTICK] [UPVECBEND]
 %    fprintf(fid,'%s\n',' 10.0  10.0  0.001 0 0');
     fprintf(fid,'%s\n',' 10.0  10.0  0.001 3 1');
     % PHIREDSWH [NOPTSWITCH] [[DOAUI] [DOSENREUSE]
     fprintf(fid,'%s\n',' 0.1  3 noaui');
     % NOPTMAX PHIREDSTP NPHISTP NPHINORED RELPARSTP NRELPAR
-    fprintf(fid,'%s\n',' 2  0.005  4  4  0.005  4');
+    fprintf(fid,'%s\n',' -1  0.005  4  4  0.005  4');
 %    fprintf(fid,'%s\n','40  0.005  4  4  0.005  4');
     % ICOV ICOR IEIG
-    fprintf(fid,'%s\n',' 1  1  1');
+    fprintf(fid,'%s\n',' 1  1  1 jcosaveitn');
 %    fprintf(fid,'%s\n',' 0  0  0');
 
     

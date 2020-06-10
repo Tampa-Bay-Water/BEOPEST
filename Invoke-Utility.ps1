@@ -1,16 +1,16 @@
 ﻿param(
     [Parameter(Mandatory=$True,Position=1)]
     [ValidateSet('StartBeoPEST', 'RestartVgrids', 'RestartSlaves', 'KillIHMProcess', 'LogoffRDs', 
-                 'CreateStartupShortcut','RemoveStartupShortcut', 
-                 'RemoveStatiscsFiles', 'MinimizeWindows',
+                 'CreateStartupShortcut','RemoveStartupShortcut', 'GetSampleRunStats', 'GetDataRunStats',
+                 'RemoveStatiscsFiles', 'MinimizeWindows', 'ShowWindows',
                  'PostprocessingIHM','TerminateBeoSlaves','FindIncomplete')]
     [string]$Prog = 'MinimizeWindows',
     
     [Parameter()]
-    $VgridIDs=1..82,
+    $VgridIDs=1..33,
     
     [Parameter()]
-    $InstanceIDs=1..6,
+    $InstanceIDs=1..16,
     
     [Parameter()]
     $runname='bp_test',
@@ -139,35 +139,61 @@ $VgridIDs |%{
 }
 
 
+'GetSampleRunStats' {
+$VgridIDs |%{
+    $v = $_.ToString('vgrid00');
+    Get-ChildItem "\\$v\C$\IHM\Current*\*.stats" |%{ gc $_.FullName }
+    } |
+    ConvertFrom-Csv -Header @('cname','pwd','name','starttime','proctime','clocktime','vm','pm','ws') |
+    ?{$_.name -ieq 'powershell' -and $_.pwd -ieq 'c:\ihm\current1'} |
+    select cname,pwd,starttime,clocktime,pm |ft -AutoSize
+}
+
+
+'GetDataRunStats' {
+$VgridIDs |%{
+    $v = $_.ToString('vgrid00');
+    Get-ChildItem "\\$v\C$\IHM\Current*\*.stats" |%{ gc $_.FullName }
+    } |
+    ConvertFrom-Csv -Header @('cname','pwd','name','starttime','proctime','clocktime','vm','pm','ws')
+}
+    
+
 'RemoveStatiscsFiles' {
 # Remove run statistics collector files
 $VgridIDs |%{
     $v = $_.ToString('vgrid00');
-    $temp = Get-ChildItem "\\$v\C$\IHM\*.stats"
+    $temp = Get-ChildItem "\\$v\C$\IHM\Current*\*.stats"
     if ($temp.Count -gt 0) {
         Remove-Item -Path $temp
     }}
 }
 
+
 'MinimizeWindows' {
-# Minimize HSPF window
+# Minimize window
+$cred = Import-Clixml -Path `
+    (Join-Path 'F:\VGRIDS\admin' "$($env:COMPUTERNAME)_$($env:USERNAME.Substring(0,4))_cred.xml")
 $VgridIDs | %{
-    if ($_ -eq 0) { $v = "."}
-    elseif ($_ -lt 0) {$v = abs($_).ToString('kuhntucker0')}
-    else {$_.ToString('vgrid00')}
-    Invoke-Command -ComputerName $v -ScriptBlock {
-        param($ProcNames)
-        $temp = Get-Process -Name $ProcNames;
-$Win32ShowWindowAsync = Add-Type –memberDefinition @” 
-[DllImport("user32.dll")] 
-public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow); 
-“@ -name “Win32ShowWindowAsync” -namespace Win32Functions –passThru  
-        foreach ($i in $temp) {
-            $Win32ShowWindowAsync::ShowWindowAsync($i.MainWindowHandle,11) | Out-Null
-        }
-    } -ArgumentList $ProcNames }
+    Invoke-Command -ComputerName $_.ToString('vgrid00\.vgrid\.local') -ScriptBlock {
+        param($opts)
+        net use F: \\vgridfs\f_drive
+        Invoke-Expression -Command "F:\VGRIDS\beopest\Show-Window.ps1 FORCEMINIMIZE $opts" 
+    } -ArgumentList $Options -Credential $cred -Authentication Credssp}
 }
 
+'ShowWindows' {
+# Maximize window
+$cred = Import-Clixml -Path `
+    (Join-Path 'F:\VGRIDS\admin' "$($env:COMPUTERNAME)_$($env:USERNAME.Substring(0,4))_cred.xml")
+$VgridIDs | %{
+    Invoke-Command -ComputerName $_.ToString('vgrid00\.vgrid\.local') -ScriptBlock {
+        param($opts)
+        net use F: \\vgridfs\f_drive
+        Invoke-Expression -Command "F:\VGRIDS\beopest\Show-Window.ps1 SHOW $opts" 
+    } -ArgumentList $Options -Credential $cred -Authentication Credssp}
+}
+   
 <#
 function Minimize-Wondows {
 param(
@@ -195,13 +221,13 @@ param(
         'SHOWNOACTIVATE'  = 4
         'SHOWNORMAL'      = 1
     }
-$Win32ShowWindowAsync = Add-Type –memberDefinition @” 
+$Win32ShowWindow = Add-Type –memberDefinition @” 
 [DllImport("user32.dll")] 
-public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow); 
-“@ -name “Win32ShowWindowAsync” -namespace Win32Functions –passThru  
+public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow); 
+“@ -name “Win32ShowWindow” -namespace Win32Functions –passThru  
 
     Get-Process -Name $ProcName |
-    %{$Win32ShowWindowAsync::ShowWindowAsync($_.MainWindowHandle,$WindowStates[$State])} |Out-Null
+    %{$Win32ShowWindow::ShowWindow($_.MainWindowHandle,$WindowStates[$State])} |Out-Null
 }
 Minimize-Wondows -State FORCEMINIMIZE -ProcName "mstsc"
 
