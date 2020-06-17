@@ -2,10 +2,10 @@ function create_pst(d_current0,runname,wt_col,flag_parmtran)
 % Script to create PPEST *.pst (version2)
 
 if nargin < 1 || isempty(d_current0)
-  d_current0 = 'F:\IHM\BEOPEST\Current0';
+  d_current0 = 'F:\IHM\BEOPEST\Current0_IHMv4_20191120';
 end
-if nargin < 2, runname = 'bp_036'; end
-if nargin < 3, wt_col = 17; end
+if nargin < 2, runname = 'bp_020'; end
+if nargin < 3, wt_col = 5; end
 if nargin < 4, flag_parmtran = true; end
 
 %% path and files for creation of parameters data
@@ -13,8 +13,7 @@ d_root = fileparts(d_current0);
 f_param = fullfile(d_root,runname,'parameters_3.xls'); % original:'parameters_2.xls'
 f_weight = fullfile(d_root,'ObsWeightSchemes_3.xls'); %original:ObsWeightSchemes_2.xls
 d_pestet = fullfile(d_root,'PEST_ET');
-%also change in line 97
-f_intb = fullfile(d_current0,'INTB_input.mdf');   % flip back this INTB_input.mdf when needs to run bp07
+f_intb = fullfile(d_current0,'INTB2_input.mdf');
 f_dbout = fullfile(d_current0,'INTB_output.mdf');
 
 addpath(fullfile(d_root,'New_PotSurfaceTarget'),'-end');
@@ -90,18 +89,10 @@ sqllocaldb_exe = 'C:\Program Files\Microsoft SQL Server\110\Tools\Binn\SqlLocalD
 system(['"' sqllocaldb_exe '" create ' db_instance ' -s']);
 sv = ['(localdb)\' db_instance];
 dv = 'SQL Server Native Client 11.0';
-% dv = 'Microsoft OLE DB Provider for SQL Server';
-% conn = database('','','','com.microsoft.sqlserver.jdbc.SQLServerDriver',...
-%     ['jdbc:odbc:Driver=' dv ';Server=' sv ';AttachDbFileName=' f_intb ...
-%     ';Database=' f_intb ';Trusted_Connection=Yes']);
-%conn = database('INTB_input','',''); %flip back when running bp_007
-if verLessThan('matlab','9.5.0')
-    setdbprefs('DataReturnFormat','table');
-else
-    conn = database(['Driver=' dv ';Server=' sv ';Database=' f_intb ...
-            ';AttachDbFileName=' f_intb ...
-            ';Trusted_Connection=Yes;LoginTimeout=300;']);
-end
+conn = database(['Driver=' dv ';Server=' sv ';Database=' f_intb ...
+    ';AttachDbFileName=' f_intb ...
+	';Trusted_Connection=Yes;LoginTimeout=300;']);
+
 scn_props = fetch(conn,['select * from [' f_intb '].dbo.Scenario where Name=''PEST_Run''']);
 % sim_sdate = scn_props.SimulationStartDate{1}(1:10);
 sim_edate = scn_props.SimulationEndDate{1}(1:10);
@@ -116,45 +107,28 @@ sql = [...
         'FROM ObservedWell AS OW INNER JOIN ',...
         'Region AS RGN ON OW.RegionID = RGN.RegionID'...
     ];
-if verLessThan('matlab','9.5.0')
-    setdbprefs('DataReturnFormat','cellarray');
-    curs = fetch(conn, sql);
-else
-    curs = fetch(conn, sql, 'DataReturnFormat', 'cellarray');
-end
+curs = fetch(conn, sql, 'DataReturnFormat', 'cellarray');
 wellrgn = struct('sid',curs(:,1),'Region',curs(:,2),'Layer',curs(:,3));
 sql = [...
         'SELECT FS.FlowStationID AS SID, RGN.Name AS Region ',...
         'FROM FlowStation AS FS INNER JOIN ',...
         'Region AS RGN ON FS.RegionID = RGN.RegionID'...
     ];
-if verLessThan('matlab','9.5.0')
-    curs = fetch(conn, sql);
-else
-    curs = fetch(conn, sql, 'DataReturnFormat', 'cellarray');
-end
+curs = fetch(conn, sql, 'DataReturnFormat', 'cellarray');
 strmrgn = struct('sid',curs(:,1),'Region',curs(:,2));
 sql = [...
         'SELECT     SP.SpringID AS SID, RGN.Name ',...
         'FROM Spring AS SP INNER JOIN ',...
         'Region AS RGN ON SP.RegionID = RGN.RegionID'...
     ];
-if verLessThan('matlab','9.5.0')
-    curs = fetch(conn, sql);
-else
-    curs = fetch(conn, sql, 'DataReturnFormat', 'cellarray');
-end
+curs = fetch(conn, sql, 'DataReturnFormat', 'cellarray');
 sprgrgn = struct('sid',curs(:,1),'Region',curs(:,2));
 sql = [...
         'SELECT     RCH.ReachID AS RID, RGN.Name ',...
         'FROM Reach AS RCH INNER JOIN ',...
         'Region AS RGN ON RCH.RegionID = RGN.RegionID'...
     ];
-if verLessThan('matlab','9.5.0')
-    curs = fetch(conn, sql);
-else
-    curs = fetch(conn, sql, 'DataReturnFormat', 'cellarray');
-end
+curs = fetch(conn, sql, 'DataReturnFormat', 'cellarray');
 rchrgn = struct('rid',curs(:,1),'Region',curs(:,2));
 sql = [...
         'SELECT LS.LandSegmentID, RGN.Name ',...
@@ -162,13 +136,11 @@ sql = [...
         '(Basin AS BS INNER JOIN LandSegment AS LS ON BS.BasinID = LS.BasinID) ',...
         'ON RGN.RegionID = BS.RegionID'...
     ];
-if verLessThan('matlab','9.5.0')
-    curs = fetch(conn, sql);
-else
-    curs = fetch(conn, sql, 'DataReturnFormat', 'cellarray');
-end
+curs = fetch(conn, sql, 'DataReturnFormat', 'cellarray');
 lsegrgn = struct('lid',curs(:,1),'Region',curs(:,2));
 
+exec(conn,['ALTER DATABASE [' f_intb '] SET OFFLINE WITH ROLLBACK IMMEDIATE']);
+exec(conn,['exec sp_detach_db [' f_intb ']']);
 close(conn);
 grp_region = {sprgrgn,sprgrgn,strmrgn,strmrgn,wellrgn,wellrgn};
 
@@ -219,14 +191,8 @@ i_insfile = [];
 obs_function;
 
 % localDB Cleanup
-% conn = database('','','','com.microsoft.sqlserver.jdbc.SQLServerDriver',...
-%     ['jdbc:odbc:Driver=' dv ';Server=' sv ';Database=master;Trusted_Connection=Yes']);
-conn = database('localdb_v11','','');
-exec(conn,['exec sp_detach_db [' f_intb ']']);
-exec(conn,['ALTER DATABASE [' f_dbout '] SET OFFLINE WITH ROLLBACK IMMEDIATE']);
-exec(conn,['exec sp_detach_db [' f_dbout ']']);
-close(conn);
 system(['"' sqllocaldb_exe '" stop ' db_instance]);
+% system(['"' sqllocaldb_exe '" delete ' db_instance]);
 
 % prior information data
 pinfo_data = [];
@@ -352,7 +318,7 @@ write_file;
     for g = par_group'
         if strcmp(g,'intfw')>0
             temp = sprintf('%-13s absolute  0.01  0.0  always_3  0.5  parabolic',char(g));
-        elseif strcmp(g,'do')>0
+          elseif strcmp(g,'do')>0
             temp = sprintf('%-13s relative  0.08  0.1  always_3  0.5  parabolic',char(g));
         else
             temp = sprintf('%-13s relative  0.08  0.0  always_3  0.5  parabolic',char(g));
@@ -381,17 +347,9 @@ write_file;
   function obs_function
     % weekly & monthly spring, stream flow, and Goundwater level
     typecode = [1,2;1,1;2,2;2,1;3,2;3,1];
-%     conn = database('','','','com.microsoft.sqlserver.jdbc.SQLServerDriver',...
-%         ['jdbc:odbc:Driver=' dv ';Server=' sv ';AttachDbFileName=' f_dbout ...
-%         ';Database=' f_dbout ';Trusted_Connection=Yes']);
-    conn = database('INTB_output','','');
-    if verLessThan('matlab','9.5.0')
-        setdbprefs('DataReturnFormat','table');
-    else
-        conn = database(['Driver=' dv ';Server=' sv ';Database=' f_dbout ...
-                ';AttachDbFileName=' f_dbout ...
-                ';Trusted_Connection=Yes;LoginTimeout=300;']);
-    end
+    conn = database(['Driver=' dv ';Server=' sv ';Database=' f_dbout ...
+        ';AttachDbFileName=' f_dbout ...
+        ';Trusted_Connection=Yes;LoginTimeout=300;']);
     for i=1:6
       csv = fetch(conn,[...
         'SELECT LocationID',...
@@ -418,7 +376,9 @@ write_file;
         csv.LocationID,csv.DATE,'UniformOutput',false);
 %         csv(:,1),csv(:,2),'UniformOutput',false);
     end
-
+    
+    exec(conn,['ALTER DATABASE [' f_dbout '] SET OFFLINE WITH ROLLBACK IMMEDIATE']);
+    exec(conn,['exec sp_detach_db [' f_dbout ']']);
     close(conn);
     
     % add layernumber to groundwater group
@@ -447,7 +407,7 @@ write_file;
       if etobs_wt(i) <= 0, continue; end
       switch i
         case {1 2 3 4 5}
-          fid = fopen(fullfile(d_etout,char(f_etout{i})),'r');
+          fid = fopen(fullfile(d_etout,f_etout{i}),'r');
           csv = textscan(fid,'%d%f%f%f%f','HeaderLines',1,'Delimiter',',');
           fclose(fid);
           form = [etobsname_tpl{i} '  0.0 %5.2f  ' etobs_group{i}];
@@ -463,7 +423,7 @@ write_file;
             csv{1,1},'UniformOutput',false);
           
         case {6 7} % LU total & Category Total
-          fid = fopen(fullfile(d_etout,char(f_etout{i})),'r');
+          fid = fopen(fullfile(d_etout,f_etout{i}),'r');
           csv = textscan(fid,'%s%f%f%f%f','HeaderLines',1,'Delimiter',',');
           fclose(fid);
           form = [etobsname_tpl{i} '  0.0 %5.2f  ' etobs_group{i}];
@@ -478,7 +438,7 @@ write_file;
             csv{1,1},'UniformOutput',false);
           
          case {8 9}
-          fid = fopen(fullfile(d_etout,char(f_etout{i})),'r');
+          fid = fopen(fullfile(d_etout,f_etout{i}),'r');
           csv = textscan(fid,'%d%f%f%f%f','HeaderLines',1,'Delimiter',',');
           fclose(fid);
           form = [etobsname_tpl{i} '  0.0 %5.2f  ' etobs_group{i}];
@@ -494,7 +454,7 @@ write_file;
             csv{1,1},'UniformOutput',false);
 
         case 10
-          fid = fopen(fullfile(d_etout,char(f_etout{i})),'r');
+          fid = fopen(fullfile(d_etout,f_etout{i}),'r');
           csv = textscan(fid,'%s%d%f%f%f%f',...
               'HeaderLines',1,'Delimiter',',');
           fclose(fid);
@@ -577,7 +537,7 @@ write_file;
     % RLAMBDA1 RLAMFAC PHIRATSUF PHIREDLAM NUMLAM [JACUPDATE]
 %    fprintf(fid,'%s\n',' 50.0  2.0  0.2  0.01  10 999');
     fprintf(fid,'%s\n','  0  2.0  0.2  0.01  1 999 lamforgive');
-    % RELPARMAX FACPARMAX FACORIG [IBOUNDSTICK] [UPVECBEND]
+% RELPARMAX FACPARMAX FACORIG [IBOUNDSTICK] [UPVECBEND]
 %    fprintf(fid,'%s\n',' 10.0  10.0  0.001 0 0');
     fprintf(fid,'%s\n',' 10.0  10.0  0.001 3 1');
     % PHIREDSWH [NOPTSWITCH] [[DOAUI] [DOSENREUSE]
@@ -595,7 +555,7 @@ write_file;
     % PARGPNME INCTYP DERINC DERINCLB FORCEN DERINCMUL DERMTHD
     % (one such line for each of the NPARGP parameter groups)
     for i=1:length(par_grpdata)
-      fprintf(fid,'%s\n',char(par_grpdata{i}));
+      fprintf(fid,'%s\n',par_grpdata{i});
     end
 
     
@@ -606,7 +566,7 @@ write_file;
     % PARNME PARTIED
     % (one such line for each tied parameter)
     for i=1:length(par_data)
-      fprintf(fid,'%s\n',char(par_data{i}));
+      fprintf(fid,'%s\n',par_data{i});
     end
     if ~isempty(tied_par)
       for i=1:length(tied_par)
@@ -626,7 +586,7 @@ write_file;
     % OBGNME
     % (one such line for each observation group)
     for i=1:length(obs_grpdata)
-      fprintf(fid,'%s\n',char(obs_grpdata{i}));
+      fprintf(fid,'%s\n',obs_grpdata{i});
     end
 
     
@@ -635,7 +595,7 @@ write_file;
     % OBSNME OBSVAL WEIGHT OBGNME
     % (one such line for each of the NOBS observations)
     for i=1:length(obs_data)
-      fprintf(fid,'%s\n',char(obs_data{i}));
+      fprintf(fid,'%s\n',obs_data{i});
     end
 
     
@@ -651,14 +611,14 @@ write_file;
     % TEMPFLE INFLE
     % (one such line for each model input file containing parameters)
     for i=1:length(f_template)
-      fprintf(fid,'%s\n',char(f_template{i}));
+      fprintf(fid,'%s\n',f_template{i});
     end
 
     % INSFLE OUTFLE
     % (one such line for each model output file containing observations)
 %     for i=1:length(f_instruction)
     for i=1:length(f_instruction)
-      fprintf(fid,'%s\n',char(f_instruction{i}));
+      fprintf(fid,'%s\n',f_instruction{i});
     end
 
 
